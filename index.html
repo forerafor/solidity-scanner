@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 فحص عقود Solidity مجاناً</title>
+    <style>
+        * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #0f172a; color: white; padding: 20px; max-width: 1000px; margin: auto; }
+        .container { background: #1e293b; padding: 30px; border-radius: 15px; margin-top: 20px; }
+        h1 { color: #38bdf8; text-align: center; }
+        textarea { width: 100%; height: 300px; background: #334155; color: white; 
+                   border: 2px solid #475569; border-radius: 10px; padding: 15px; 
+                   font-family: monospace; font-size: 14px; }
+        button { background: #3b82f6; color: white; border: none; padding: 12px 30px; 
+                 border-radius: 8px; font-size: 16px; cursor: pointer; margin: 10px 5px; }
+        button:hover { background: #2563eb; }
+        .result { background: #0c4a6e; padding: 20px; border-radius: 10px; margin-top: 20px; 
+                  display: none; }
+        .critical { color: #f87171; }
+        .warning { color: #fbbf24; }
+        .info { color: #34d399; }
+    </style>
+</head>
+<body>
+    <h1>🔍 فاحص عقود Solidity الذكي</h1>
+    <p>الصق كود العقد أدناه واطلع على التقرير الأمني المجاني</p>
+    
+    <div class="container">
+        <h3>📝 أدخل كود العقد هنا:</h3>
+        <textarea id="codeInput" placeholder="// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract MyContract {
+    // الصق كودك هنا...
+}"></textarea>
+        
+        <br><br>
+        <button onclick="scanWithAI()">🔍 بدء الفحص الذكي</button>
+        <button onclick="quickScan()">⚡ فحص سريع</button>
+        <button onclick="clearCode()">🗑️ مسح الكود</button>
+        
+        <div id="loading" style="display:none; margin:20px;">
+            <p>⏳ جاري الفحص... يرجى الانتظار 10-30 ثانية</p>
+        </div>
+        
+        <div id="result" class="result">
+            <h3>📊 نتائج الفحص:</h3>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h3>📚 أمثلة عقود للتدرب:</h3>
+        <button onclick="loadExample('token')">🪙 عقد Token بسيط</button>
+        <button onclick="loadExample('bank')">🏦 عقد بنك</button>
+        <button onclick="loadExample('staking')">🔒 عقد Staking</button>
+    </div>
+    
+    <script src="scanner.js"></script>
+</body>
+</html>
