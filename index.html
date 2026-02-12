@@ -1,202 +1,109 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔬 Solidity PoC Scanner - ماسح وإثبات الثغرات</title>
-    
-    <!-- CSS -->
-    <link rel="stylesheet" href="style.css">
-    
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
-    <!-- Highlight.js -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/solidity.min.js"></script>
-</head>
-<body>
-    <div class="container">
-        <!-- شريط التنقل -->
-        <nav class="navbar">
-            <div class="logo">
-                <i class="fas fa-shield-virus"></i>
-                <span>Solidity<span class="highlight">PoC</span>Scanner</span>
+<!-- ===== شاشة الفحص المنبثقة ===== -->
+<div id="scanPopup" class="scan-popup" style="display: none;">
+    <div class="popup-content">
+        <div class="popup-header">
+            <div class="popup-title">
+                <i class="fas fa-microscope"></i>
+                <h3>🔬 جاري فحص المشروع</h3>
             </div>
-            <div class="nav-links">
-                <a href="#scanner" class="active"><i class="fas fa-microscope"></i> الماسح</a>
-                <a href="#poc"><i class="fas fa-bug"></i> مولد PoC</a>
-                <a href="#contracts"><i class="fas fa-file-code"></i> العقود</a>
-                <a href="#attacks"><i class="fas fa-skull"></i> الهجمات</a>
-            </div>
-        </nav>
-
-        <!-- قسم الترحيب -->
-        <section class="hero">
-            <h1>🔬 <span class="gradient-text">ماسح وإثبات الثغرات</span> في عقول Solidity</h1>
-            <p>تحليل المشاريع على GitHub + توليد كود PoC تلقائي لكل ثغرة</p>
-        </section>
-
-        <!-- قسم الماسح -->
-        <section id="scanner" class="scanner-section">
-            <h2><i class="fas fa-microscope"></i> ماسح GitHub العميق</h2>
-            
-            <div class="url-input">
+            <button onclick="ShrekApp.cancelScan()" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="popup-body">
+            <!-- المشروع الحالي -->
+            <div class="current-project">
                 <i class="fab fa-github"></i>
-                <input type="url" id="githubUrl" placeholder="https://github.com/username/repository">
-                <button id="scanBtn" onclick="startScan()" class="btn-primary">
-                    <i class="fas fa-play"></i> فحص المشروع
-                </button>
-            </div>
-
-            <div class="options">
-                <label><input type="checkbox" id="includeDeps" checked> فحص المكتبات والتبعيات</label>
-                <label><input type="checkbox" id="generatePOC" checked> توليد كود PoC تلقائياً</label>
-                <label><input type="checkbox" id="deepAnalysis" checked> تحليل عميق لكل ملف</label>
-            </div>
-
-            <!-- مؤشر التقدم -->
-            <div id="progress" class="progress-section hidden">
-                <div class="progress-bar">
-                    <div id="progressFill" class="progress-fill"></div>
-                </div>
-                <div id="status">جاري التحليل...</div>
-            </div>
-        </section>
-
-        <!-- قسم النتائج -->
-        <section id="results" class="results-section hidden">
-            <div class="results-header">
-                <h2><i class="fas fa-chart-bar"></i> نتائج الفحص</h2>
-                <button onclick="clearResults()" class="btn-danger">
-                    <i class="fas fa-trash"></i> مسح النتائج
-                </button>
+                <span id="scanProjectUrl">github.com/username/repo</span>
             </div>
             
-            <div id="resultsContainer"></div>
-        </section>
-
-        <!-- قسم مولد PoC -->
-        <section id="poc" class="poc-section">
-            <h2><i class="fas fa-bug"></i> مولد Proof of Concept التلقائي</h2>
-            
-            <div class="poc-controls">
-                <select id="vulnType">
-                    <option value="reentrancy">🔴 Reentrancy Attack</option>
-                    <option value="overflow">🟡 Arithmetic Overflow/Underflow</option>
-                    <option value="txorigin">🔵 Tx.Origin Authentication</option>
-                    <option value="frontrun">🟣 Front-Running</option>
-                    <option value="dos">🟠 Denial of Service</option>
-                </select>
-                
-                <button onclick="generatePOC()" class="btn-primary">
-                    <i class="fas fa-code"></i> توليد كود PoC
-                </button>
-                
-                <button onclick="copyPOC()" class="btn-secondary">
-                    <i class="fas fa-copy"></i> نسخ الكود
-                </button>
+            <!-- شريط التقدم المتحرك -->
+            <div class="progress-container">
+                <div class="progress-bar-container">
+                    <div id="scanProgressFill" class="progress-fill" style="width: 0%;"></div>
+                </div>
+                <div class="progress-percentage" id="scanProgressPercent">0%</div>
             </div>
             
-            <div id="pocCode" class="code-block">
-                <pre><code class="solidity">// اختر نوع الثغرة واضغط على توليد كود PoC</code></pre>
-            </div>
-        </section>
-
-        <!-- قسم العقود المصابة -->
-        <section id="contracts" class="contracts-section">
-            <h2><i class="fas fa-file-code"></i> العقود المصابة (للاختبار)</h2>
-            
-            <div class="contracts-grid">
-                <div class="contract-card" onclick="loadContract('VulnerableBank.sol')">
-                    <i class="fas fa-university"></i>
-                    <h4>VulnerableBank.sol</h4>
-                    <p>ثغرة Reentrancy</p>
-                    <span class="badge critical">حرجة</span>
+            <!-- الحالة الحالية -->
+            <div class="status-container">
+                <div class="status-icon" id="scanStatusIcon">
+                    <i class="fas fa-spinner fa-spin"></i>
                 </div>
-                
-                <div class="contract-card" onclick="loadContract('VulnerableToken.sol')">
-                    <i class="fas fa-coins"></i>
-                    <h4>VulnerableToken.sol</h4>
-                    <p>ثغرة Overflow/Underflow</p>
-                    <span class="badge warning">تحذير</span>
-                </div>
-                
-                <div class="contract-card" onclick="loadContract('VulnerableWallet.sol')">
-                    <i class="fas fa-wallet"></i>
-                    <h4>VulnerableWallet.sol</h4>
-                    <p>ثغرة Tx.Origin</p>
-                    <span class="badge critical">حرجة</span>
-                </div>
-                
-                <div class="contract-card" onclick="loadContract('VulnerableLottery.sol')">
-                    <i class="fas fa-ticket-alt"></i>
-                    <h4>VulnerableLottery.sol</h4>
-                    <p>ثغرة Front-Running</p>
-                    <span class="badge warning">تحذير</span>
-                </div>
-                
-                <div class="contract-card" onclick="loadContract('VulnerableAirdrop.sol')">
-                    <i class="fas fa-gift"></i>
-                    <h4>VulnerableAirdrop.sol</h4>
-                    <p>ثغرة DoS</p>
-                    <span class="badge medium">متوسطة</span>
+                <div class="status-message" id="scanStatusMessage">
+                    جاري تحضير الفحص...
                 </div>
             </div>
             
-            <div id="contractCode" class="code-block">
-                <pre><code class="solidity">// اختر عقداً لعرض الكود</code></pre>
-            </div>
-        </section>
-
-        <!-- قسم عقود الهجوم -->
-        <section id="attacks" class="attacks-section">
-            <h2><i class="fas fa-skull"></i> عقود الهجوم (PoC جاهز)</h2>
-            
-            <div class="attacks-grid">
-                <div class="attack-card" onclick="loadAttack('AttackReentrancy.sol')">
-                    <i class="fas fa-undo-alt"></i>
-                    <h4>AttackReentrancy.sol</h4>
-                    <p>هجوم إعادة الدخول</p>
+            <!-- سجل الفحص الحي -->
+            <div class="scan-log">
+                <div class="log-header">
+                    <i class="fas fa-list"></i>
+                    <span>سجل الفحص</span>
                 </div>
-                
-                <div class="attack-card" onclick="loadAttack('AttackOverflow.sol')">
-                    <i class="fas fa-calculator"></i>
-                    <h4>AttackOverflow.sol</h4>
-                    <p>هجوم تجاوز السعة</p>
-                </div>
-                
-                <div class="attack-card" onclick="loadAttack('AttackTxOrigin.sol')">
-                    <i class="fas fa-user-secret"></i>
-                    <h4>AttackTxOrigin.sol</h4>
-                    <p>هجوم Tx.Origin</p>
-                </div>
-                
-                <div class="attack-card" onclick="loadAttack('AttackFrontRun.sol')">
-                    <i class="fas fa-running"></i>
-                    <h4>AttackFrontRun.sol</h4>
-                    <p>هجوم السبق</p>
-                </div>
-                
-                <div class="attack-card" onclick="loadAttack('AttackDoS.sol')">
-                    <i class="fas fa-ban"></i>
-                    <h4>AttackDoS.sol</h4>
-                    <p>هجوم منع الخدمة</p>
+                <div class="log-messages" id="scanLog">
+                    <div class="log-entry">
+                        <span class="log-time">00:00</span>
+                        <span class="log-text">🔍 بدء فحص GitHub</span>
+                    </div>
                 </div>
             </div>
             
-            <div id="attackCode" class="code-block">
-                <pre><code class="solidity">// اختر هجوماً لعرض الكود</code></pre>
+            <!-- الملفات المكتشفة -->
+            <div class="scan-stats">
+                <div class="stat-item">
+                    <i class="fas fa-file-code"></i>
+                    <span class="stat-label">الملفات:</span>
+                    <span class="stat-value" id="statFiles">0</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-book"></i>
+                    <span class="stat-label">المكتبات:</span>
+                    <span class="stat-value" id="statLibraries">0</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-bug"></i>
+                    <span class="stat-label">الثغرات:</span>
+                    <span class="stat-value" id="statVulns">0</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-clock"></i>
+                    <span class="stat-label">الوقت:</span>
+                    <span class="stat-value" id="statTime">0.0s</span>
+                </div>
             </div>
-        </section>
+            
+            <!-- الملف الحالي -->
+            <div class="current-file-box">
+                <i class="fas fa-file-code"></i>
+                <span id="currentScanFile">جاري التحضير...</span>
+            </div>
+        </div>
+        
+        <div class="popup-footer">
+            <button onclick="ShrekApp.cancelScan()" class="btn-cancel">
+                <i class="fas fa-ban"></i>
+                إلغاء الفحص
+            </button>
+            <button onclick="ShrekApp.runInBackground()" class="btn-background">
+                <i class="fas fa-arrow-right"></i>
+                تشغيل في الخلفية
+            </button>
+        </div>
     </div>
+</div>
 
-    <!-- JavaScript -->
-    <script src="vulnerability-db.js"></script>
-    <script src="github-analyzer.js"></script>
-    <script src="poc-generator.js"></script>
-    <script src="report-generator.js"></script>
-    <script src="app.js"></script>
-</body>
-</html>
+<!-- ===== شاشة النتائج الفورية ===== -->
+<div id="instantResults" class="instant-results" style="display: none;">
+    <div class="instant-header">
+        <i class="fas fa-bolt"></i>
+        <h3>✨ نتائج فورية - تم العثور على ثغرات!</h3>
+        <button onclick="this.parentElement.parentElement.style.display='none'" class="close-instant">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="instant-body" id="instantResultsContent">
+        <!-- تظهر النتائج هنا -->
+    </div>
+</div>
