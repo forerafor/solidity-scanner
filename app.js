@@ -1,268 +1,291 @@
-// ===== شاشة الفحص المنبثقة =====
-showScanPopup: function(url) {
-    const popup = document.getElementById('scanPopup');
-    const projectSpan = document.getElementById('scanProjectUrl');
+// ============================================
+// 🚀 Solidity Scanner - النسخة المتكاملة مع Backend
+// ============================================
+
+const App = {
+    // الإعدادات
+    API_URL: 'https://your-backend-api.onrender.com', // استبدل هذا برابط الـ Backend
+    GITHUB_TOKEN: null,
     
-    if (popup) {
-        popup.style.display = 'flex';
-        if (projectSpan) {
-            // استخراج اسم المشروع من الرابط
-            const match = url.match(/github\.com\/([^\/]+\/[^\/]+)/);
-            projectSpan.textContent = match ? match[1] : url;
+    // عناصر DOM
+    elements: {},
+    
+    // حالة التطبيق
+    state: {
+        isScanning: false,
+        currentRepo: '',
+        results: null
+    },
+
+    // ========== التهيئة ==========
+    init() {
+        this.cacheElements();
+        this.setupEventListeners();
+        this.loadSettings();
+        console.log('✅ Solidity Scanner جاهز');
+    },
+
+    cacheElements() {
+        const ids = ['repoUrl', 'scanBtn', 'clearBtn', 'progressArea', 'resultsArea', 
+                     'logBox', 'progressFill', 'progressPercent', 'currentFileSpan',
+                     'resultsContent', 'githubToken', 'saveTokenBtn', 'rateLimitDisplay'];
+        ids.forEach(id => this.elements[id] = document.getElementById(id));
+    },
+
+    setupEventListeners() {
+        this.elements.scanBtn.addEventListener('click', () => this.startScan());
+        this.elements.clearBtn.addEventListener('click', () => this.clearAll());
+        if (this.elements.saveTokenBtn) {
+            this.elements.saveTokenBtn.addEventListener('click', () => this.saveToken());
         }
-    }
-    
-    // إعادة تعيين السجل
-    this.clearScanLog();
-    
-    // إضافة بداية الفحص
-    this.addScanLog('🔍 بدء فحص GitHub', 'info');
-},
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.setExample(btn.dataset.url));
+        });
+    },
 
-hideScanPopup: function() {
-    const popup = document.getElementById('scanPopup');
-    if (popup) {
-        popup.style.display = 'none';
-    }
-},
+    // ========== الفحص الرئيسي ==========
+    async startScan() {
+        const url = this.elements.repoUrl.value.trim();
+        
+        if (!url || !url.includes('github.com')) {
+            this.showNotification('❌ أدخل رابط GitHub صحيح', 'error');
+            return;
+        }
 
-// ===== إضافة سجل للفحص =====
-addScanLog: function(message, type = 'info') {
-    const logContainer = document.getElementById('scanLog');
-    if (!logContainer) return;
-    
-    const now = new Date();
-    const time = `${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-    
-    const logEntry = document.createElement('div');
-    logEntry.className = 'log-entry';
-    
-    let icon = '';
-    switch(type) {
-        case 'success': icon = '✅'; break;
-        case 'warning': icon = '⚠️'; break;
-        case 'error': icon = '❌'; break;
-        case 'info': icon = 'ℹ️'; break;
-        default: icon = '•';
-    }
-    
-    logEntry.innerHTML = `
-        <span class="log-time">${time}</span>
-        <span class="log-text">${icon} ${message}</span>
-    `;
-    
-    logContainer.appendChild(logEntry);
-    logContainer.scrollTop = logContainer.scrollHeight;
-},
+        if (this.state.isScanning) {
+            this.showNotification('⚠️ فحص قيد التنفيذ', 'warning');
+            return;
+        }
 
-// ===== مسح سجل الفحص =====
-clearScanLog: function() {
-    const logContainer = document.getElementById('scanLog');
-    if (logContainer) {
-        logContainer.innerHTML = '';
-    }
-},
+        this.state.isScanning = true;
+        this.state.currentRepo = url;
+        this.showProgress();
+        
+        try {
+            // 1. استخراج معلومات المستودع
+            const repoInfo = this.parseGitHubUrl(url);
+            this.addLog(`📡 جاري فحص: ${repoInfo.owner}/${repoInfo.repo}`, 'info');
 
-// ===== تحديث التقدم =====
-updateScanProgress: function(percent, message, file = null) {
-    // تحديث شريط التقدم
-    const progressFill = document.getElementById('scanProgressFill');
-    const progressPercent = document.getElementById('scanProgressPercent');
-    const statusMessage = document.getElementById('scanStatusMessage');
-    const currentFile = document.getElementById('currentScanFile');
-    
-    if (progressFill) progressFill.style.width = `${percent}%`;
-    if (progressPercent) progressPercent.textContent = `${percent}%`;
-    if (statusMessage) statusMessage.textContent = message;
-    if (currentFile && file) currentFile.textContent = file;
-    
-    // تحديث الإحصائيات
-    if (percent === 10) this.updateScanStats(15, 3, 0);
-    if (percent === 30) this.updateScanStats(24, 8, 0);
-    if (percent === 50) this.updateScanStats(47, 12, 1);
-    if (percent === 70) this.updateScanStats(89, 18, 2);
-    if (percent === 90) this.updateScanStats(124, 24, 3);
-},
+            // 2. الاتصال بالـ Backend API
+            const response = await fetch(`${this.API_URL}/api/scan`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': this.GITHUB_TOKEN ? `Bearer ${this.GITHUB_TOKEN}` : ''
+                },
+                body: JSON.stringify({
+                    repoUrl: url,
+                    token: this.GITHUB_TOKEN
+                })
+            });
 
-// ===== تحديث إحصائيات الفحص =====
-updateScanStats: function(files, libraries, vulns) {
-    const statFiles = document.getElementById('statFiles');
-    const statLibraries = document.getElementById('statLibraries');
-    const statVulns = document.getElementById('statVulns');
-    const statTime = document.getElementById('statTime');
-    
-    if (statFiles) statFiles.textContent = files;
-    if (statLibraries) statLibraries.textContent = libraries;
-    if (statVulns) statVulns.textContent = vulns;
-    if (statTime) {
-        const seconds = (Date.now() - this.scanStartTime) / 1000;
-        statTime.textContent = `${seconds.toFixed(1)}s`;
-    }
-},
+            if (!response.ok) {
+                throw new Error(`فشل الاتصال بالخادم: ${response.status}`);
+            }
 
-// ===== عرض نتائج فورية =====
-showInstantResults: function(vulnerability) {
-    const instantBox = document.getElementById('instantResults');
-    const instantContent = document.getElementById('instantResultsContent');
-    
-    if (!instantBox || !instantContent) return;
-    
-    const severityColors = {
-        'critical': '#ef4444',
-        'high': '#f59e0b',
-        'medium': '#3b82f6',
-        'low': '#10b981'
-    };
-    
-    const color = severityColors[vulnerability.severity] || '#6366f1';
-    
-    instantContent.innerHTML = `
-        <div style="display: flex; align-items: start; gap: 12px;">
-            <div style="background: ${color}20; padding: 0.8rem; border-radius: 50%;">
-                <i class="fas fa-bug" style="color: ${color}; font-size: 1.2rem;"></i>
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            // 3. معالجة التدفق (Streaming) للنتائج
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = JSON.parse(line.slice(5));
+                        this.handleStreamData(data);
+                    }
+                }
+            }
+
+        } catch (error) {
+            console.error('Scan error:', error);
+            this.addLog(`❌ ${error.message}`, 'error');
+            this.showNotification(`❌ فشل الفحص: ${error.message}`, 'error');
+        } finally {
+            this.state.isScanning = false;
+            this.hideProgress();
+        }
+    },
+
+    // ========== معالجة بيانات التدفق ==========
+    handleStreamData(data) {
+        switch(data.type) {
+            case 'progress':
+                this.updateProgress(data.percent, data.file);
+                break;
+            case 'log':
+                this.addLog(data.message, data.level);
+                break;
+            case 'file':
+                this.updateFileInfo(data);
+                break;
+            case 'vulnerability':
+                this.addVulnerability(data.vuln);
+                break;
+            case 'result':
+                this.displayResults(data.results);
+                break;
+        }
+    },
+
+    // ========== عرض النتائج ==========
+    displayResults(results) {
+        this.state.results = results;
+        this.elements.resultsArea.classList.remove('hidden');
+        
+        let html = `
+            <div class="repo-header">
+                <h2><i class="fab fa-github"></i> ${results.metadata.repository}</h2>
+                <span class="scan-badge">${results.metadata.filesScanned} ملف</span>
             </div>
-            <div style="flex: 1;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h4 style="margin: 0; color: ${color}; font-size: 1rem;">⚠️ ${vulnerability.name}</h4>
-                    <span style="background: ${color}20; color: ${color}; padding: 0.2rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">
-                        ${vulnerability.severity}
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <i class="fas fa-file-code"></i>
+                    <span class="stat-number">${results.stats.totalFiles}</span>
+                    <span class="stat-label">ملف Solidity</span>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-bug"></i>
+                    <span class="stat-number">${results.vulnerabilities.length}</span>
+                    <span class="stat-label">ثغرة</span>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-exclamation-triangle" style="color:#ef4444"></i>
+                    <span class="stat-number">${results.stats.criticalCount}</span>
+                    <span class="stat-label">حرجة</span>
+                </div>
+            </div>
+        `;
+
+        if (results.vulnerabilities.length === 0) {
+            html += `<div class="safe-message">🎉 لا توجد ثغرات! المشروع آمن.</div>`;
+        } else {
+            results.vulnerabilities.forEach(v => {
+                html += this.createVulnerabilityCard(v);
+            });
+        }
+
+        this.elements.resultsContent.innerHTML = html;
+        this.showNotification(`✅ اكتمل الفحص - ${results.vulnerabilities.length} ثغرة`, 'success');
+    },
+
+    // ========== إنشاء بطاقة الثغرة ==========
+    createVulnerabilityCard(v) {
+        const severityColor = v.severity === 'critical' ? '#ef4444' : 
+                             v.severity === 'high' ? '#f59e0b' : '#3b82f6';
+        
+        return `
+            <div class="vuln-card" style="border-right-color: ${severityColor}">
+                <div class="vuln-header">
+                    <h3 style="color: ${severityColor}"><i class="fas fa-bug"></i> ${v.name}</h3>
+                    <span class="severity-badge" style="background: ${severityColor}20; color: ${severityColor}">
+                        ${v.severity.toUpperCase()}
                     </span>
                 </div>
-                <p style="color: #e2e8f0; margin-bottom: 8px; font-size: 0.9rem;">
-                    ${vulnerability.description}
-                </p>
-                <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 12px;">
-                    <i class="fas fa-file-code"></i> ${vulnerability.location.file}:${vulnerability.location.line}
-                </p>
-                <button onclick="ShrekApp.showFix('${vulnerability.type}')" style="background: ${color}; border: none; color: white; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <p>${v.description}</p>
+                <div class="vuln-meta">
+                    <span><i class="fas fa-file-code"></i> ${v.file}:${v.line}</span>
+                    <span><i class="fas fa-chart-line"></i> ثقة ${v.confidence}%</span>
+                </div>
+                <div class="code-block">
+                    <pre><code class="solidity">${this.escapeHtml(v.code)}</code></pre>
+                </div>
+                <button onclick="App.showFix('${v.type}')" class="btn-primary">
                     <i class="fas fa-wrench"></i> عرض الإصلاح
                 </button>
             </div>
-        </div>
-    `;
-    
-    instantBox.style.display = 'block';
-    
-    // إخفاء بعد 10 ثواني
-    setTimeout(() => {
-        instantBox.style.display = 'none';
-    }, 10000);
-},
+        `;
+    },
 
-// ===== إلغاء الفحص =====
-cancelScan: function() {
-    clearInterval(this.progressInterval);
-    clearInterval(this.statsInterval);
-    this.isScanning = false;
-    this.updateScanUI(false);
-    this.hideScanPopup();
-    this.addScanLog('❌ تم إلغاء الفحص', 'error');
-    this.showNotification('تم إلغاء الفحص', 'warning');
-},
+    // ========== دوال مساعدة ==========
+    parseGitHubUrl(url) {
+        const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+        return { owner: match[1], repo: match[2] };
+    },
 
-// ===== تشغيل في الخلفية =====
-runInBackground: function() {
-    this.hideScanPopup();
-    this.showNotification('جاري الفحص في الخلفية...', 'info');
-},
+    updateProgress(percent, file) {
+        this.elements.progressFill.style.width = `${percent}%`;
+        this.elements.progressPercent.textContent = `${percent}%`;
+        if (file) this.elements.currentFileSpan.textContent = file;
+    },
 
-// ===== تحديث startScan لاستخدام الشاشة الجديدة =====
-startScan: async function() {
-    const url = document.getElementById('githubUrl')?.value;
-    
-    if (!url) {
-        this.showNotification('❌ الرجاء إدخال رابط GitHub', 'error');
-        return;
-    }
-    
-    if (!url.includes('github.com')) {
-        this.showNotification('❌ الرجاء إدخال رابط GitHub صحيح', 'error');
-        return;
-    }
-    
-    if (this.isScanning) {
-        this.showNotification('⚠️ فحص قيد التنفيذ', 'warning');
-        return;
-    }
-    
-    this.isScanning = true;
-    this.scanStartTime = Date.now();
-    this.updateScanUI(true);
-    
-    // ✅ إظهار الشاشة المنبثقة
-    this.showScanPopup(url);
-    
-    // ✅ إضافة سجلات الفحص
-    this.addScanLog('📡 الاتصال بـ GitHub...', 'info');
-    
-    setTimeout(() => {
-        this.addScanLog('✅ تم الاتصال بنجاح', 'success');
-        this.updateScanProgress(10, 'جاري تحليل المستودع...', 'Fetching repo info');
-    }, 500);
-    
-    setTimeout(() => {
-        this.addScanLog('🔍 البحث عن ملفات Solidity...', 'info');
-        this.updateScanProgress(30, 'جاري فحص الملفات...', 'contracts/Vault.sol');
-        this.updateScanStats(24, 8, 0);
-    }, 1000);
-    
-    setTimeout(() => {
-        this.addScanLog('📚 تحليل المكتبات...', 'info');
-        this.addScanLog('   • OpenZeppelin Contracts v4.9.3', 'info');
-        this.addScanLog('   • Solmate v6.7.0', 'info');
-        this.updateScanProgress(50, 'فحص المكتبات والتبعيات...', 'node_modules/@openzeppelin/ERC20.sol');
-        this.updateScanStats(47, 12, 1);
-    }, 1500);
-    
-    setTimeout(() => {
-        this.addScanLog('⚠️ اكتشاف ثغرة محتملة...', 'warning');
-        this.addScanLog('   • Reentrancy في Vault.sol:45', 'warning');
-        this.updateScanProgress(70, 'تحليل الثغرات الأمنية...', 'contracts/Vault.sol');
-        this.updateScanStats(89, 18, 2);
-    }, 2000);
-    
-    setTimeout(() => {
-        this.addScanLog('✅ اكتمل تحليل الكود', 'success');
-        this.addScanLog('📊 توليد التقرير...', 'info');
-        this.updateScanProgress(90, 'توليد التقرير النهائي...', 'Generating report');
-        this.updateScanStats(124, 24, 3);
-    }, 2500);
-    
-    try {
-        // ✅ نتائج فورية
-        const results = await this.githubAnalyzer.scanRepository(url);
-        
+    addLog(message, level = 'info') {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${level}`;
+        entry.innerHTML = `<span class="log-time">${new Date().toLocaleTimeString()}</span> ${message}`;
+        this.elements.logBox.appendChild(entry);
+        this.elements.logBox.scrollTop = this.elements.logBox.scrollHeight;
+    },
+
+    showProgress() {
+        this.elements.progressArea.classList.remove('hidden');
+        this.elements.resultsArea.classList.add('hidden');
+        this.elements.logBox.innerHTML = '';
+        this.updateProgress(0, 'جاري التحضير...');
+    },
+
+    hideProgress() {
         setTimeout(() => {
-            this.addScanLog('✨ اكتمل الفحص بنجاح!', 'success');
-            this.updateScanProgress(100, 'اكتمل الفحص!', 'Done');
-            
-            this.currentResults = results;
-            this.displayResults(results);
-            this.saveSettings();
-            
-            // ✅ عرض نتائج فورية لأول ثغرة
-            if (results.vulnerabilities && results.vulnerabilities.length > 0) {
-                this.showInstantResults(results.vulnerabilities[0]);
-            }
-            
-            setTimeout(() => {
-                this.hideScanPopup();
-                this.isScanning = false;
-                this.updateScanUI(false);
-                this.showNotification(`✅ تم فحص ${results.metadata.repository}`, 'success');
-            }, 1000);
-            
-        }, 3000);
-        
-    } catch (error) {
-        console.error(error);
-        this.addScanLog(`❌ خطأ: ${error.message}`, 'error');
-        this.showNotification(`❌ ${error.message}`, 'error');
-        
-        setTimeout(() => {
-            this.hideScanPopup();
-            this.isScanning = false;
-            this.updateScanUI(false);
-        }, 2000);
+            this.elements.progressArea.classList.add('hidden');
+        }, 500);
+    },
+
+    clearAll() {
+        this.elements.repoUrl.value = '';
+        this.elements.progressArea.classList.add('hidden');
+        this.elements.resultsArea.classList.add('hidden');
+        this.state.isScanning = false;
+    },
+
+    showNotification(message, type) {
+        // يمكنك استخدام Toast أو alert بسيط
+        alert(message);
+    },
+
+    setExample(url) {
+        this.elements.repoUrl.value = url;
+    },
+
+    saveToken() {
+        this.GITHUB_TOKEN = this.elements.githubToken.value.trim();
+        localStorage.setItem('github_token', this.GITHUB_TOKEN);
+        this.showNotification('✅ تم حفظ التوكن', 'success');
+    },
+
+    loadSettings() {
+        this.GITHUB_TOKEN = localStorage.getItem('github_token') || null;
+    },
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
+    showFix(type) {
+        const fixes = {
+            reentrancy: `// تحديث الحالة قبل إرسال الأموال
+function withdraw(uint256 amount) public {
+    balances[msg.sender] -= amount;  // ✅ أولاً
+    (bool success, ) = msg.sender.call{value: amount}("");  // ✅ ثانياً
+    require(success);
+}`,
+            txorigin: `// استخدم msg.sender بدلاً من tx.origin
+modifier onlyOwner() {
+    require(msg.sender == owner);
+    _;
+}`,
+            overflow: `// استخدم Solidity 0.8.0+
+pragma solidity ^0.8.0;  // محمي تلقائياً`
+        };
+        alert(fixes[type] || 'الإصلاح غير متاح');
     }
-},
+};
+
+document.addEventListener('DOMContentLoaded', () => App.init());
